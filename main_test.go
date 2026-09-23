@@ -8,15 +8,25 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestHelpExitStatus(t *testing.T) {
+func buildCLI(t *testing.T) string {
+	t.Helper()
 	binary := filepath.Join(t.TempDir(), "budget")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
 	if output, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, output)
 	}
+	return binary
+}
+
+func TestHelpExitStatus(t *testing.T) {
+	binary := buildCLI(t)
 	for _, arg := range []string{"-h", "-help"} {
 		cmd := exec.Command(binary, arg)
 		var stderr bytes.Buffer
@@ -211,14 +221,8 @@ func TestCLIExclusionsAndRelativePaths(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	relative, err := filepath.Rel(cwd, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Chdir(filepath.Dir(dir))
+	relative := filepath.Base(dir)
 	var previous measurements
 	for _, root := range []string{dir, relative} {
 		var out bytes.Buffer
@@ -269,6 +273,7 @@ func TestCLICeilingAndPackageLabels(t *testing.T) {
 }
 
 func TestCLIPackageLabels(t *testing.T) {
+	binary := buildCLI(t)
 	dir := t.TempDir()
 	for path, pkg := range map[string]string{
 		".": "brief", "detect": "detect", "internal/detect": "detect", "cmd/brief": "main",
@@ -281,16 +286,33 @@ func TestCLIPackageLabels(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var out bytes.Buffer
-	if err := run([]string{dir}, &out); err != nil {
-		t.Fatal(err)
+	output, err := exec.Command(binary, dir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("CLI: %v\n%s", err, output)
 	}
+	out := string(output)
 	for _, label := range []string{"brief (root)", "detect", "internal/detect", "main (cmd/brief)"} {
-		if !strings.Contains(out.String(), "  "+label+"\n") {
-			t.Errorf("missing package label %q in:\n%s", label, &out)
+		if !strings.Contains(out, "  "+label+"\n") {
+			t.Errorf("missing package label %q in:\n%s", label, out)
 		}
 	}
-	if strings.Contains(out.String(), "detect (detect)") || strings.Contains(out.String(), "detect (internal/detect)") {
-		t.Fatal(out.String())
+	if strings.Contains(out, "detect (detect)") || strings.Contains(out, "detect (internal/detect)") {
+		t.Fatal(out)
+	}
+	output, err = exec.Command(binary, "-json", dir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("JSON CLI: %v\n%s", err, output)
+	}
+	var data measurements
+	if err := json.Unmarshal(output, &data); err != nil {
+		t.Fatal(err)
+	}
+	var packages []string
+	for _, p := range data.Packages {
+		packages = append(packages, p.Name)
+	}
+	want := []string{".:brief", "cmd/brief:main", "detect:detect", "internal/detect:detect"}
+	if !reflect.DeepEqual(packages, want) {
+		t.Fatalf("packages = %q, want %q", packages, want)
 	}
 }

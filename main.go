@@ -200,7 +200,7 @@ func measure(path string, input any) (*fileMeasurement, error) {
 	if len(nodes) != len(originals) {
 		return nil, fmt.Errorf("%s: formatting changed function count from %d to %d", path, len(originals), len(nodes))
 	}
-	result := &fileMeasurement{aggregate: aggregate{Name: path, Package: filepath.Dir(path) + ":" + file.Name.Name, LOC: lines(fset, source, file, nil)}}
+	result := &fileMeasurement{aggregate: aggregate{Name: path, Package: filepath.ToSlash(filepath.Dir(path)) + ":" + file.Name.Name, LOC: lines(fset, source, file, nil)}}
 	for i, node := range nodes {
 		name, err := functionName(fset, node)
 		if err != nil {
