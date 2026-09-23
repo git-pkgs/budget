@@ -63,3 +63,7 @@ A starting instruction is:
 Keep the task, scan scope, and acceptance tests fixed when comparing implementations. Budget checks the entire supplied directory; it has no baseline or changed-code mode. Existing violations therefore need separate handling before using it to gate new work.
 
 Use budget alongside correctness linters and tests. Tools such as `gocyclo`, `gocognit`, and `funlen` already cover much of the same ground, with different counting rules. Budget combines the constraints with whole-source LOC and decision totals for comparing implementations; it does not check correctness, duplication, dependency vulnerabilities, or whether a shorter implementation is easier to maintain.
+
+## License
+
+[MIT](LICENSE).
